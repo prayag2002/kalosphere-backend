@@ -1,8 +1,6 @@
-version: "3.9"
 services:
   postgres:
     image: postgres:15
-    restart: always
     environment:
       POSTGRES_USER: kalouser
       POSTGRES_PASSWORD: kalopass

@@ -4,7 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 from .models import User
 
 
-class RegisterSerializer(serializers.ModelSerializer):
+class RegisterSerializer(serializers.ModelSerializer["User"]):
     """
     Serializer for user registration.
     - Validates input
