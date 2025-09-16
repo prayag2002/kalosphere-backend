@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import timedelta
 from typing import Any
 from dotenv import load_dotenv
+from datetime import timedelta
 
 # Load environment variables
 load_dotenv()
@@ -121,3 +122,9 @@ SIMPLE_JWT: dict[str, Any] = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
 }
+
+# Email config (console backend for development)
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "no-reply@kalosphere.com"
+FRONTEND_URL = "http://127.0.0.1:8000"   # or your frontend dev URL
+EMAIL_VERIFICATION_LIFETIME = timedelta(hours=1)
