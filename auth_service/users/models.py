@@ -10,7 +10,7 @@ from django.contrib.auth.models import (
 from django.utils import timezone
 
 
-class UserManager(BaseUserManager):
+class UserManager(BaseUserManager["User"]):
     """
     Custom manager for User model.
     Handles creation of normal users and superusers.
@@ -27,13 +27,14 @@ class UserManager(BaseUserManager):
         Create and return a regular user.
         - Normalizes the email
         - Hashes the password
+        - Persists the user in the database
         """
         if not email:
             raise ValueError("Email is required")
 
         email = self.normalize_email(email)
-        user = self.model(email=email, username=username, **extra_fields)
-        user.set_password(password)  # hashes the password securely
+        user: "User" = self.model(email=email, username=username, **extra_fields)
+        user.set_password(password)
         user.save(using=self._db)
         return user
 
@@ -46,7 +47,8 @@ class UserManager(BaseUserManager):
     ) -> "User":
         """
         Create and return a superuser.
-        Adds staff and superuser privileges.
+        - Adds staff and superuser privileges
+        - Validates required flags
         """
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
@@ -82,9 +84,7 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     - Includes email verification flag
     """
 
-    id = models.UUIDField(
-        primary_key=True, default=uuid.uuid4, editable=False
-    )
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True, db_index=True)
     username = models.CharField(max_length=50, unique=True, db_index=True)
 
@@ -94,13 +94,12 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     is_email_verified = models.BooleanField(default=False)
 
     # Attach manager
-    objects = UserManager()
+    objects: UserManager = UserManager()
 
     # Use email for login instead of username
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
 
     def __str__(self) -> str:
+        """String representation for debugging/admin."""
         return f"{self.username} <{self.email}>"
-
-    

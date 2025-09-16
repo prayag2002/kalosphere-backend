@@ -1,0 +1,17 @@
+# --- Type checking ---
+mypy==1.7.1
+django-stubs==4.2.7
+djangorestframework-stubs==3.14.5
+django-stubs-ext==4.2.7
+
+# --- Code style & formatting ---
+black==24.8.0
+isort==5.12.0
+flake8==6.1.0
+
+# --- Git hooks (optional but good) ---
+pre-commit==3.6.0
+
+# --- Testing ---
+pytest==8.3.2
+pytest-django==4.7.0
