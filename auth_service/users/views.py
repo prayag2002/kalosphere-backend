@@ -1,9 +1,8 @@
 """
 users/views.py
-Auth-related views: Register (with email verification), VerifyEmail, Logout.
-- Uses Django settings via django.conf.settings (safe: we use getattr with defaults).
-- Uses rest_framework_simplejwt AccessToken for short-lived verification tokens.
-- Type-checked for mypy (casts where necessary).
+Auth-related views: Register, VerifyEmail, ResendVerification, Login, Logout.
+- Handles email verification with JWT tokens.
+- Blocks login if email is not verified.
 """
 
 from __future__ import annotations
@@ -19,6 +18,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken, Token
 
 from .models import User
@@ -27,13 +27,50 @@ from .serializers import RegisterSerializer
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------
+# Helper: send verification email
+# ---------------------------
+def send_verification_email(user: User) -> None:
+    """
+    Generates a short-lived verification token and sends it by email.
+    """
+    token = AccessToken.for_user(user)
+    token["type"] = "email_verification"
+
+    lifetime = getattr(settings, "EMAIL_VERIFICATION_LIFETIME", timedelta(hours=1))
+    try:
+        token.set_exp(lifetime=lifetime)
+    except Exception:
+        exp_dt = timezone.now() + (
+            lifetime if isinstance(lifetime, timedelta) else timedelta(hours=1)
+        )
+        token["exp"] = int(exp_dt.timestamp())
+
+    verification_link = f"http://127.0.0.1:8000/api/auth/verify-email/?token={str(token)}"
+
+    subject = "Verify your Kalosphere account"
+    message = (
+        f"Hi {user.username},\n\n"
+        f"Please verify your Kalosphere account by clicking the link below:\n\n{verification_link}\n\n"
+        "If you didn't request this, please ignore this message.\n"
+    )
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@kalosphere.com")
+
+    send_mail(
+        subject=subject,
+        message=message,
+        from_email=from_email,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
+# ---------------------------
+# Views
+# ---------------------------
+
 class RegisterView(generics.CreateAPIView[User]):
-    """
-    API endpoint for user registration.
-    - Creates a new user (is_email_verified = False by default)
-    - Generates a short-lived email verification token and sends an email
-    - Does not block user creation if email sending fails (returns 201 but includes a note)
-    """
+    """Register a user and send verification email."""
 
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
@@ -43,48 +80,11 @@ class RegisterView(generics.CreateAPIView[User]):
         serializer.is_valid(raise_exception=True)
         user: User = serializer.save()
 
-        # Build verification token
-        token = AccessToken.for_user(user)
-        token["type"] = "email_verification"
-
-        # Token lifetime: use settings.EMAIL_VERIFICATION_LIFETIME if present, else 1 hour
-        lifetime = getattr(settings, "EMAIL_VERIFICATION_LIFETIME", timedelta(hours=1))
         try:
-            # preferred API (may exist depending on simplejwt version)
-            token.set_exp(lifetime=lifetime)
-        except Exception:
-            # fallback: compute numeric exp manually
-            exp_dt = timezone.now() + (lifetime if isinstance(lifetime, timedelta) else timedelta(hours=1))
-            token["exp"] = int(exp_dt.timestamp())
-
-        # Frontend URL to include in the email. fallback to local dev server.
-        # frontend_base = getattr(settings, "FRONTEND_URL", "http://127.0.0.1:8000")
-        # verification_link = f"{frontend_base.rstrip('/')}/verify-email?token={str(token)}"
-        verification_link = f"http://127.0.0.1:8000/api/auth/verify-email/?token={str(token)}"
-
-
-        # Email metadata (use settings.DEFAULT_FROM_EMAIL if set)
-        from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@kalosphere.com")
-        subject = "Verify your Kalosphere account"
-        message = (
-            f"Hi {user.username},\n\n"
-            f"Please verify your Kalosphere account by clicking the link below:\n\n{verification_link}\n\n"
-            "If you didn't request this, please ignore this message.\n"
-        )
-
-        # Try to send email. If it fails, log and return success response anyway.
-        try:
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=from_email,
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
+            send_verification_email(user)
             email_status = "Verification email sent"
         except Exception as exc:
-            # Log the exception for later debugging (do not leak internal details to client)
-            logger.exception("Failed to send verification email to %s: %s", user.email, exc)
+            logger.exception("Failed to send verification email: %s", exc)
             email_status = "Account created, but failed to send verification email"
 
         return Response(
@@ -98,11 +98,34 @@ class RegisterView(generics.CreateAPIView[User]):
         )
 
 
+class ResendVerificationView(APIView):
+    """Resend the email verification link."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        email: str | None = request.data.get("email")
+        if not email:
+            return Response({"detail": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.is_email_verified:
+            return Response({"detail": "Email already verified"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            send_verification_email(user)
+            return Response({"detail": "Verification email resent"}, status=status.HTTP_200_OK)
+        except Exception as exc:
+            logger.exception("Failed to resend verification email: %s", exc)
+            return Response({"detail": "Failed to send email"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class VerifyEmailView(APIView):
-    """
-    Verify the email address.
-    Expects a query param: ?token=<jwt>
-    """
+    """Verify email address with a token."""
 
     permission_classes = [permissions.AllowAny]
 
@@ -112,10 +135,7 @@ class VerifyEmailView(APIView):
             return Response({"detail": "Token missing"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # AccessToken accepts a token-like value at runtime; cast to satisfy mypy.
             token = AccessToken(cast(Token, token_str))
-
-            # Optional extra check: ensure the token type is what we issued
             if token.get("type") != "email_verification":
                 return Response({"detail": "Invalid token type"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -129,19 +149,31 @@ class VerifyEmailView(APIView):
 
             user.is_email_verified = True
             user.save(update_fields=["is_email_verified"])
-
             return Response({"detail": "Email successfully verified"}, status=status.HTTP_200_OK)
 
         except Exception as exc:
-            logger.debug("VerifyEmailView failed token parsing/validation: %s", exc)
+            logger.debug("VerifyEmailView failed: %s", exc)
             return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class CustomLoginView(TokenObtainPairView):
+    """Custom login that blocks unverified users."""
+
+    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        response = super().post(request, *args, **kwargs)
+        # If login was successful, check if user is verified
+        if response.status_code == 200:
+            user = User.objects.get(email=request.data.get("email"))
+            if not user.is_email_verified:
+                return Response(
+                    {"detail": "Email not verified. Please verify your email."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+        return response
+
+
 class LogoutView(APIView):
-    """
-    Blacklist a refresh token (logout).
-    Clients should POST: { "refresh": "<refresh_token>" }
-    """
+    """Logout by blacklisting refresh token."""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -151,7 +183,6 @@ class LogoutView(APIView):
             return Response({"detail": "Refresh token required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # RefreshToken expects a str at runtime; cast to appease type checker
             token = RefreshToken(cast(Token, refresh_token))
             token.blacklist()
         except Exception:
