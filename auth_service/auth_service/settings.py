@@ -27,9 +27,17 @@ INSTALLED_APPS: list[str] = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
     # Third-party apps
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
+    "corsheaders",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.github",
+    "axes",
     # Local apps
     "users",
 ]
@@ -37,12 +45,15 @@ INSTALLED_APPS: list[str] = [
 # Middleware
 MIDDLEWARE: list[str] = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
 
 # URLs & WSGI
@@ -138,3 +149,71 @@ EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+
+# Site ID for django-allauth
+SITE_ID = 1
+
+# Security settings
+MAX_LOGIN_ATTEMPTS = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
+ACCOUNT_LOCK_DURATION = int(os.getenv("ACCOUNT_LOCK_DURATION", "30"))  # minutes
+
+# CORS settings
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
+# Axes (brute force protection) settings
+AXES_ENABLED = True
+AXES_FAILURE_LIMIT = MAX_LOGIN_ATTEMPTS
+AXES_COOLOFF_TIME = ACCOUNT_LOCK_DURATION
+AXES_LOCKOUT_CALLABLE = "axes.lockout.database_lockout"
+AXES_LOCKOUT_TEMPLATE = "account_locked.html"
+
+# django-allauth settings
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_USER_MODEL_USERNAME_FIELD = "username"
+ACCOUNT_USER_MODEL_EMAIL_FIELD = "email"
+
+# Social authentication settings
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "SCOPE": [
+            "profile",
+            "email",
+        ],
+        "AUTH_PARAMS": {
+            "access_type": "online",
+        },
+        "OAUTH_PKCE_ENABLED": True,
+    },
+    "github": {
+        "SCOPE": [
+            "user",
+            "user:email",
+        ],
+    },
+}
+
+# Twilio settings for SMS
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "")
+
+# MFA settings
+MFA_CODE_LIFETIME = int(os.getenv("MFA_CODE_LIFETIME", "5"))  # minutes
+MFA_CODE_LENGTH = int(os.getenv("MFA_CODE_LENGTH", "6"))
+
+# Password reset settings
+PASSWORD_RESET_LIFETIME = int(os.getenv("PASSWORD_RESET_LIFETIME", "60"))  # minutes
