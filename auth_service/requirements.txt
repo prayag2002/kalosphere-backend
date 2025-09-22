@@ -1,0 +1,35 @@
+# Core Django and DRF
+Django==4.2.7
+djangorestframework==3.14.0
+djangorestframework-simplejwt==5.3.0
+django-cors-headers==4.3.1
+
+# Database
+psycopg2-binary==2.9.9
+
+# Environment management
+python-dotenv==1.0.0
+
+# Multi-factor authentication
+pyotp==2.9.0
+qrcode==7.4.2
+Pillow==10.1.0
+
+# OAuth2 and social authentication
+django-allauth==0.57.0
+requests==2.31.0
+
+# Phone number validation and SMS
+phonenumbers==8.13.25
+twilio==8.10.0
+
+# Email and notifications
+celery==5.3.4
+redis==5.0.1
+
+# Security and rate limiting
+django-ratelimit==4.1.0
+django-axes==6.1.1
+
+# Utilities
+uuid==1.30
