@@ -2,9 +2,9 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: kalouser
-      POSTGRES_PASSWORD: kalopass
-      POSTGRES_DB: kalo_auth
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRESS_PASSWORD}
+      POSTGRES_DB: ${POSTGRESS_DB}
     ports:
       - "5432:5432"
     volumes:
