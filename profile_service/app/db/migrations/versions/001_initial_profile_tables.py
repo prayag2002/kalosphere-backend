@@ -71,7 +71,7 @@ def upgrade() -> None:
         sa.Column('new_score', sa.Numeric(5, 2), nullable=False),
         sa.Column('reason', sa.String(50), nullable=False),
         sa.Column('source_event_id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('metadata', postgresql.JSONB(), nullable=True),
+        sa.Column('event_metadata', postgresql.JSONB(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['user_id'], ['profiles.user_id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),

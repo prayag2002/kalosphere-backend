@@ -56,7 +56,7 @@ class ReputationHistory(Base):
         unique=True,  # Idempotency key
         nullable=False,
     )
-    metadata: Mapped[dict[str, Any] | None] = mapped_column(
+    event_metadata: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
     )

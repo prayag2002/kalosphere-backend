@@ -39,7 +39,7 @@ class ReputationService:
                 new_score=payload.new_score,
                 reason=payload.reason,
                 source_event_id=event.event_id,
-                metadata=payload.breakdown,
+                event_metadata=payload.breakdown,
             )
             .on_conflict_do_nothing(index_elements=["source_event_id"])
         )
