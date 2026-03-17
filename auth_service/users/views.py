@@ -29,6 +29,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken, Token
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.exceptions import TokenError
+from django.core.exceptions import ObjectDoesNotExist
 
 from .models import User, PasswordResetToken, MFACode
 from .serializers import (
@@ -37,6 +39,8 @@ from .serializers import (
     TOTPVerifySerializer, PhoneNumberSerializer, MFACodeSerializer,
     UserProfileSerializer, SocialLoginSerializer
 )
+
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -172,38 +176,47 @@ class ResendVerificationView(APIView):
             logger.exception("Failed to resend verification email: %s", exc)
             return Response({"detail": "Failed to send email"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class VerifyEmailView(APIView):
-    """Verify email address with a token."""
-
     permission_classes = [permissions.AllowAny]
 
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        token_str: str | None = request.query_params.get("token")
+    def get(self, request, *args, **kwargs):
+        token_str = request.query_params.get("token")
+
         if not token_str:
             return Response({"detail": "Token missing"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            token = AccessToken(cast(Token, token_str))
+            token = AccessToken(token_str)
+            print("Token Payload:", token.payload)
+
             if token.get("type") != "email_verification":
                 return Response({"detail": "Invalid token type"}, status=status.HTTP_400_BAD_REQUEST)
 
-            user_id = token.get("user_id")
+            user_id = token.get("sub")
             if not user_id:
                 return Response({"detail": "Invalid token payload"}, status=status.HTTP_400_BAD_REQUEST)
 
-            user = User.objects.get(id=user_id)
+            try:
+                user_uuid = uuid.UUID(user_id)
+            except ValueError:
+                return Response({"detail": "Invalid token payload"}, status=status.HTTP_400_BAD_REQUEST)
+
+            user = User.objects.get(id=user_uuid)
+
             if user.is_email_verified:
                 return Response({"detail": "Email already verified"}, status=status.HTTP_200_OK)
 
             user.is_email_verified = True
-            user.save(update_fields=["is_email_verified"])
+            user.is_active = True
+            user.save(update_fields=["is_email_verified", "is_active"])
+
             return Response({"detail": "Email successfully verified"}, status=status.HTTP_200_OK)
 
-        except Exception as exc:
-            logger.debug("VerifyEmailView failed: %s", exc)
+        except TokenError:
             return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
 
+        except ObjectDoesNotExist:
+            return Response({"detail": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
 class CustomLoginView(TokenObtainPairView):
     """Custom login that blocks unverified users and handles account locking."""
