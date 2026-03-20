@@ -53,6 +53,7 @@ class UserAdmin(BaseUserAdmin):  # type: ignore[misc]
         ),
     )
 
+    readonly_fields = ("created_at", "updated_at")
     search_fields = ("email", "username")
     ordering = ("email",)
 
