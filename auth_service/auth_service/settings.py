@@ -124,6 +124,13 @@ REST_FRAMEWORK: dict[str, Any] = {
 
 # JWT config
 SIMPLE_JWT: dict[str, Any] = {
+    "ALGORITHM": "RS256",
+    "SIGNING_KEY": os.getenv("JWT_PRIVATE_KEY"),
+    "VERIFYING_KEY": os.getenv("JWT_PUBLIC_KEY"),
+    "USER_ID_CLAIM": "sub",
+    "USER_ID_FIELD": "id",
+    "AUDIENCE": "kalosphere",
+    "ISSUER": "kalosphere-auth",
     "ACCESS_TOKEN_LIFETIME": timedelta(
         minutes=int(os.getenv("ACCESS_TOKEN_LIFETIME_MINUTES", "15"))
     ),
