@@ -2,8 +2,7 @@
 
 from app.schemas.profile import (
     ProfileCreate,
-    ProfilePrivateResponse,
-    ProfilePublicResponse,
+    ProfileResponse,
     ProfileUpdate,
 )
 from app.schemas.preferences import PreferencesResponse, PreferencesUpdate
@@ -18,8 +17,7 @@ from app.schemas.events import (
 __all__ = [
     "ProfileCreate",
     "ProfileUpdate",
-    "ProfilePublicResponse",
-    "ProfilePrivateResponse",
+    "ProfileResponse",
     "PreferencesUpdate",
     "PreferencesResponse",
     "ReputationHistoryItem",
