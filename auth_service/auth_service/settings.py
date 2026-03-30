@@ -3,7 +3,6 @@ from pathlib import Path
 from datetime import timedelta
 from typing import Any
 from dotenv import load_dotenv
-from datetime import timedelta
 
 # Load environment variables
 load_dotenv()
@@ -143,7 +142,6 @@ SIMPLE_JWT: dict[str, Any] = {
 
 # Email config (console backend for development)
 # EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = "no-reply@kalosphere.com"
 FRONTEND_URL = "http://127.0.0.1:8000"   # or your frontend dev URL
 EMAIL_VERIFICATION_LIFETIME = timedelta(hours=1)
 
@@ -170,12 +168,13 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://localhost:5173",
 ]
 
 # Axes (brute force protection) settings
 AXES_ENABLED = True
 AXES_FAILURE_LIMIT = MAX_LOGIN_ATTEMPTS
-AXES_COOLOFF_TIME = ACCOUNT_LOCK_DURATION
+AXES_COOLOFF_TIME = timedelta(minutes=ACCOUNT_LOCK_DURATION)
 AXES_LOCKOUT_CALLABLE = "axes.lockout.database_lockout"
 AXES_LOCKOUT_TEMPLATE = "account_locked.html"
 
