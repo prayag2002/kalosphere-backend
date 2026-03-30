@@ -15,8 +15,7 @@ from app.models.preferences import UserPreferences
 from app.models.profile import Profile
 from app.schemas.profile import (
     ProfileCreate,
-    ProfilePrivateResponse,
-    ProfilePublicResponse,
+    ProfileResponse,
     ProfileUpdate,
 )
 
@@ -150,21 +149,9 @@ class ProfileService:
         await self.db.refresh(profile)
         return profile
 
-    def to_private_response(self, profile: Profile) -> ProfilePrivateResponse:
-        """Convert profile to private response (includes score)."""
-        return ProfilePrivateResponse(
-            user_id=profile.user_id,
-            username=profile.username,
-            bio=profile.bio,
-            avatar_url=self._build_avatar_url(profile.avatar_key),
-            created_at=profile.created_at,
-            reputation_score=profile.reputation_score,
-            reputation_breakdown=profile.reputation_breakdown,
-        )
-
-    def to_public_response(self, profile: Profile) -> ProfilePublicResponse:
-        """Convert profile to public response (NO score)."""
-        return ProfilePublicResponse(
+    def to_response(self, profile: Profile) -> ProfileResponse:
+        """Convert profile to response (no reputation score)."""
+        return ProfileResponse(
             user_id=profile.user_id,
             username=profile.username,
             bio=profile.bio,

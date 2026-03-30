@@ -7,12 +7,15 @@ Auth-related views: Register, VerifyEmail, ResendVerification, Login, Logout.
 
 from __future__ import annotations
 
+import json
 import logging
 import secrets
-import requests
-from datetime import timedelta
+import uuid as uuid_mod
+from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Any, cast
 
+import redis as redis_lib
+import requests
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
@@ -26,6 +29,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken, Token
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.exceptions import TokenError
+from django.core.exceptions import ObjectDoesNotExist
 
 from .models import User, PasswordResetToken, MFACode
 from .serializers import (
@@ -35,7 +40,29 @@ from .serializers import (
     UserProfileSerializer, SocialLoginSerializer
 )
 
+import uuid
+
 logger = logging.getLogger(__name__)
+
+
+def publish_event_to_redis(event_type: str, payload: dict[str, Any]) -> None:
+    """Publish an event to Redis Streams for other services to consume."""
+    try:
+        r = redis_lib.Redis(
+            host="localhost", port=6380, decode_responses=True
+        )
+        event = {
+            "event_id": str(uuid_mod.uuid4()),
+            "event_type": event_type,
+            "timestamp": datetime.now(dt_timezone.utc).isoformat(),
+            "version": 1,
+            "payload": payload,
+        }
+        r.xadd("kalosphere:events", {"payload": json.dumps(event)})
+        r.close()
+        logger.info("Published event %s for payload %s", event_type, payload)
+    except Exception as exc:
+        logger.error("Failed to publish event %s: %s", event_type, exc)
 
 
 def get_authenticated_user(request: Request) -> User:
@@ -106,6 +133,13 @@ class RegisterView(generics.CreateAPIView):
             logger.exception("Failed to send verification email: %s", exc)
             email_status = "Account created, but failed to send verification email"
 
+        # Publish user.created event so profile service auto-creates a profile
+        publish_event_to_redis("user.created", {
+            "user_id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+        })
+
         return Response(
             {
                 "id": str(user.id),
@@ -142,38 +176,47 @@ class ResendVerificationView(APIView):
             logger.exception("Failed to resend verification email: %s", exc)
             return Response({"detail": "Failed to send email"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class VerifyEmailView(APIView):
-    """Verify email address with a token."""
-
     permission_classes = [permissions.AllowAny]
 
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        token_str: str | None = request.query_params.get("token")
+    def get(self, request, *args, **kwargs):
+        token_str = request.query_params.get("token")
+
         if not token_str:
             return Response({"detail": "Token missing"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            token = AccessToken(cast(Token, token_str))
+            token = AccessToken(token_str)
+            print("Token Payload:", token.payload)
+
             if token.get("type") != "email_verification":
                 return Response({"detail": "Invalid token type"}, status=status.HTTP_400_BAD_REQUEST)
 
-            user_id = token.get("user_id")
+            user_id = token.get("sub")
             if not user_id:
                 return Response({"detail": "Invalid token payload"}, status=status.HTTP_400_BAD_REQUEST)
 
-            user = User.objects.get(id=user_id)
+            try:
+                user_uuid = uuid.UUID(user_id)
+            except ValueError:
+                return Response({"detail": "Invalid token payload"}, status=status.HTTP_400_BAD_REQUEST)
+
+            user = User.objects.get(id=user_uuid)
+
             if user.is_email_verified:
                 return Response({"detail": "Email already verified"}, status=status.HTTP_200_OK)
 
             user.is_email_verified = True
-            user.save(update_fields=["is_email_verified"])
+            user.is_active = True
+            user.save(update_fields=["is_email_verified", "is_active"])
+
             return Response({"detail": "Email successfully verified"}, status=status.HTTP_200_OK)
 
-        except Exception as exc:
-            logger.debug("VerifyEmailView failed: %s", exc)
+        except TokenError:
             return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
 
+        except ObjectDoesNotExist:
+            return Response({"detail": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
 class CustomLoginView(TokenObtainPairView):
     """Custom login that blocks unverified users and handles account locking."""

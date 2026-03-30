@@ -5,18 +5,11 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import settings
-from app.core.exceptions import (
-    InvalidAvatarError,
-    ProfileNotFoundError,
-    ProfileServiceError,
-    UsernameAlreadyTakenError,
-)
 from app.events.consumer import start_event_consumer
 
 # Configure logging
@@ -69,43 +62,6 @@ def create_app() -> FastAPI:
 
     # Include API routers
     app.include_router(api_router, prefix="/api/v1")
-
-    # Exception handlers
-    @app.exception_handler(ProfileNotFoundError)
-    async def profile_not_found_handler(
-        request: Request, exc: ProfileNotFoundError
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={"code": "PROFILE_NOT_FOUND", "message": exc.message},
-        )
-
-    @app.exception_handler(UsernameAlreadyTakenError)
-    async def username_taken_handler(
-        request: Request, exc: UsernameAlreadyTakenError
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content={"code": "USERNAME_TAKEN", "message": exc.message},
-        )
-
-    @app.exception_handler(InvalidAvatarError)
-    async def invalid_avatar_handler(
-        request: Request, exc: InvalidAvatarError
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"code": "INVALID_AVATAR", "message": exc.message},
-        )
-
-    @app.exception_handler(ProfileServiceError)
-    async def service_error_handler(
-        request: Request, exc: ProfileServiceError
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"code": "SERVICE_ERROR", "message": exc.message},
-        )
 
     # Health check
     @app.get("/health")

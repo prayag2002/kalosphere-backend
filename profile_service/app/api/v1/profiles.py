@@ -14,8 +14,7 @@ from app.core.exceptions import (
 from app.schemas.preferences import PreferencesResponse, PreferencesUpdate
 from app.schemas.profile import (
     AvatarUploadResponse,
-    ProfilePrivateResponse,
-    ProfilePublicResponse,
+    ProfileResponse,
     ProfileUpdate,
 )
 from app.schemas.reputation import ReputationHistoryResponse
@@ -30,15 +29,15 @@ router = APIRouter()
 # --- Own Profile Endpoints ---
 
 
-@router.get("/me", response_model=ProfilePrivateResponse)
+@router.get("/me", response_model=ProfileResponse)
 async def get_my_profile(
     db: DBSession,
     current_user: AuthenticatedUser,
-) -> ProfilePrivateResponse:
+) -> ProfileResponse:
     """
-    Get current user's profile with reputation score.
+    Get current user's profile.
 
-    Returns full profile including score breakdown (visible only to owner).
+    Reputation accessed separately via /me/reputation/history.
     """
     service = ProfileService(db)
     profile = await service.get_by_user_id(current_user.user_id)
@@ -46,15 +45,15 @@ async def get_my_profile(
     if not profile:
         raise http_profile_not_found()
 
-    return service.to_private_response(profile)
+    return service.to_response(profile)
 
 
-@router.patch("/me", response_model=ProfilePrivateResponse)
+@router.patch("/me", response_model=ProfileResponse)
 async def update_my_profile(
     data: ProfileUpdate,
     db: DBSession,
     current_user: AuthenticatedUser,
-) -> ProfilePrivateResponse:
+) -> ProfileResponse:
     """Update current user's profile."""
     service = ProfileService(db)
 
@@ -65,7 +64,7 @@ async def update_my_profile(
     except UsernameAlreadyTakenError:
         raise http_username_taken()
 
-    return service.to_private_response(profile)
+    return service.to_response(profile)
 
 
 @router.put("/me/avatar", response_model=AvatarUploadResponse)
@@ -167,16 +166,16 @@ async def get_my_reputation_history(
 # --- Public Profile Endpoints ---
 
 
-@router.get("/{user_id}", response_model=ProfilePublicResponse)
+@router.get("/{user_id}", response_model=ProfileResponse)
 async def get_profile(
     user_id: UUID,
     db: DBSession,
     current_user: AuthenticatedUser,
-) -> ProfilePublicResponse:
+) -> ProfileResponse:
     """
-    Get another user's public profile.
+    Get another user's profile.
 
-    IMPORTANT: Does NOT include reputation score (privacy by design).
+    Does NOT include reputation score.
     """
     service = ProfileService(db)
     profile = await service.get_by_user_id(user_id)
@@ -184,4 +183,4 @@ async def get_profile(
     if not profile:
         raise http_profile_not_found()
 
-    return service.to_public_response(profile)
+    return service.to_response(profile)
