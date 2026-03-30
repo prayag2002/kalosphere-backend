@@ -1,8 +1,6 @@
 """Profile schemas for API request/response."""
 
 from datetime import datetime
-from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
@@ -39,11 +37,11 @@ class ProfileUpdate(BaseModel):
     bio: str | None = Field(None, max_length=500)
 
 
-class ProfilePublicResponse(BaseModel):
+class ProfileResponse(BaseModel):
     """
-    Public profile view - what others see.
+    Profile response - same for all endpoints.
 
-    IMPORTANT: Does NOT include reputation score.
+    Does NOT include reputation score (accessed separately via /me/reputation/history).
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -53,17 +51,6 @@ class ProfilePublicResponse(BaseModel):
     bio: str | None
     avatar_url: HttpUrl | None = None
     created_at: datetime
-
-
-class ProfilePrivateResponse(ProfilePublicResponse):
-    """
-    Private profile view - what the owner sees.
-
-    Includes reputation score and breakdown.
-    """
-
-    reputation_score: Decimal
-    reputation_breakdown: dict[str, Any] = Field(default_factory=dict)
 
 
 class AvatarUploadResponse(BaseModel):
