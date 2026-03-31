@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone as dt_timezone
@@ -42,8 +43,10 @@ logger = logging.getLogger(__name__)
 def publish_event_to_redis(event_type: str, payload: dict[str, Any]) -> None:
     """Publish an event to Redis Streams for other services to consume."""
     try:
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = int(os.getenv("REDIS_PORT", "6379"))
         r = redis_lib.Redis(
-            host="localhost", port=6380, decode_responses=True
+            host=redis_host, port=redis_port, decode_responses=True
         )
         event = {
             "event_id": str(uuid.uuid4()),
@@ -86,7 +89,7 @@ def send_verification_email(user: User) -> None:
         )
         token["exp"] = int(exp_dt.timestamp())
 
-    verification_link = f"http://127.0.0.1:8000/api/auth/verify-email/?token={str(token)}"
+    verification_link = f"{settings.FRONTEND_URL}/verify-email?token={str(token)}"
 
     subject = "Verify your Kalosphere account"
     message = (
