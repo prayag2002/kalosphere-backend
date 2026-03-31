@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     # Application
     debug: bool = False
 
+    # Docker related
+    postgres_user: str
+    postgres_password: str
+    postgres_db: str
+
+    minio_root_user: str
+    minio_root_password: str
+
     @property
     def avatar_max_size_bytes(self) -> int:
         """Max avatar size in bytes."""

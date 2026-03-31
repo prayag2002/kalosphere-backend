@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import secrets
-import uuid as uuid_mod
+import uuid
 from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Any, cast
 
@@ -19,16 +20,12 @@ import requests
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
-from django.contrib.auth import authenticate
-from django.db import transaction
 from rest_framework import generics, permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken, Token
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.exceptions import TokenError
 from django.core.exceptions import ObjectDoesNotExist
 
@@ -40,19 +37,19 @@ from .serializers import (
     UserProfileSerializer, SocialLoginSerializer
 )
 
-import uuid
-
 logger = logging.getLogger(__name__)
 
 
 def publish_event_to_redis(event_type: str, payload: dict[str, Any]) -> None:
     """Publish an event to Redis Streams for other services to consume."""
     try:
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = int(os.getenv("REDIS_PORT", "6379"))
         r = redis_lib.Redis(
-            host="localhost", port=6380, decode_responses=True
+            host=redis_host, port=redis_port, decode_responses=True
         )
         event = {
-            "event_id": str(uuid_mod.uuid4()),
+            "event_id": str(uuid.uuid4()),
             "event_type": event_type,
             "timestamp": datetime.now(dt_timezone.utc).isoformat(),
             "version": 1,
@@ -92,7 +89,7 @@ def send_verification_email(user: User) -> None:
         )
         token["exp"] = int(exp_dt.timestamp())
 
-    verification_link = f"http://127.0.0.1:8000/api/auth/verify-email/?token={str(token)}"
+    verification_link = f"{settings.FRONTEND_URL}/verify-email?token={str(token)}"
 
     subject = "Verify your Kalosphere account"
     message = (
@@ -187,7 +184,6 @@ class VerifyEmailView(APIView):
 
         try:
             token = AccessToken(token_str)
-            print("Token Payload:", token.payload)
 
             if token.get("type") != "email_verification":
                 return Response({"detail": "Invalid token type"}, status=status.HTTP_400_BAD_REQUEST)
@@ -826,4 +822,12 @@ class SocialLoginView(APIView):
             user.github_id = provider_id
         
         user.save()
+        
+        # Publish user.created event for profile service
+        publish_event_to_redis("user.created", {
+            "user_id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+        })
+        
         return user
