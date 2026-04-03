@@ -1,6 +1,21 @@
 services:
+  auth-service:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -8,13 +23,15 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - auth_postgres_data:/var/lib/postgresql/data
 
   redis:
-    image: redis:7
-    restart: always
+    image: redis:7-alpine
     ports:
       - "6379:6379"
+    volumes:
+      - auth_redis_data:/data
 
 volumes:
-  pgdata:
+  auth_postgres_data:
+  auth_redis_data:

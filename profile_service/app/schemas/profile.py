@@ -51,6 +51,7 @@ class ProfileResponse(BaseModel):
     bio: str | None
     avatar_url: HttpUrl | None = None
     created_at: datetime
+    updated_at: datetime
 
 
 class AvatarUploadResponse(BaseModel):
