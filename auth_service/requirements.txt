@@ -33,3 +33,6 @@ django-axes==6.1.1
 
 # Utilities
 uuid==1.30
+
+# WSGI server (production/Docker)
+gunicorn==21.2.0

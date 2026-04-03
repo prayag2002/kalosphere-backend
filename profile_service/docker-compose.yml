@@ -1,13 +1,14 @@
-version: '3.8'
-
 services:
   profile-service:
     build: .
     ports:
       - "8001:8000"
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/profile_service
       - REDIS_URL=redis://redis:6379/0
+      - S3_ENDPOINT_URL=http://minio:9000
     depends_on:
       - postgres
       - redis
@@ -15,9 +16,9 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: profile_service
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5433:5432"
     volumes:
@@ -27,6 +28,8 @@ services:
     image: redis:7-alpine
     ports:
       - "6380:6379"
+    volumes:
+      - profile_redis_data:/data
 
   minio:
     image: minio/minio
@@ -35,11 +38,12 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - profile_minio_data:/data
 
 volumes:
   profile_postgres_data:
+  profile_redis_data:
   profile_minio_data:
