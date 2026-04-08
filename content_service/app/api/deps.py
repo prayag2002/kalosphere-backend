@@ -1,0 +1,14 @@
+"""API dependencies for dependency injection."""
+
+from typing import Annotated
+
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import CurrentUser, get_current_user, get_current_user_optional
+from app.db.session import get_db
+
+# Type aliases for cleaner endpoint signatures
+DBSession = Annotated[AsyncSession, Depends(get_db)]
+AuthenticatedUser = Annotated[CurrentUser, Depends(get_current_user)]
+OptionalUser = Annotated[CurrentUser | None, Depends(get_current_user_optional)]
